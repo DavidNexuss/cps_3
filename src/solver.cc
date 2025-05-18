@@ -125,6 +125,7 @@ bool solveLPN(int N, minimalDFACreateInfo ci, minimalDFASolution& solution) {
 
 
   IloCplex cplex(model);
+
   cplex.setOut(env.getNullStream());
   if (!cplex.solve()) {
     return 0;

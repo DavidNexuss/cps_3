@@ -18,3 +18,4 @@ struct minimalDFASolution {
 };
 
 minimalDFASolution solveLP(minimalDFACreateInfo ci);
+minimalDFASolution solveLPV2(minimalDFACreateInfo ci);

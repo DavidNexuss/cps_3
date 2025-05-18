@@ -6,4 +6,4 @@ for i in instances/*; do
   echo "Testing $i"
   timeout 30s ./solver < "$i" | tee out/$i.out | ./checker
   cp tmp.png out/$i.png
-done | tee summary.txt
+done 2>&1 | tee summary.txt

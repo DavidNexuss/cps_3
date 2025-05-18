@@ -1,20 +1,3 @@
-/*
- * =====================================================================================
- *
- *       Filename:  parser.cc
- *
- *    Description:  
- *
- *        Version:  1.0
- *        Created:  04/15/25 09:43:16
- *       Revision:  none
- *       Compiler:  gcc
- *
- *         Author:  YOUR NAME (), 
- *   Organization:  
- *
- * =====================================================================================
- */
 #include <string>
 #include <vector>
 #include <iostream>

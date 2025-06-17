@@ -22,7 +22,7 @@ minimalDFASolution solveSAT(int N, minimalDFACreateInfo ci, const StringTree<boo
   }
   satGenVariables(engine, A.data(), N);
 
-  //Constraint consistent
+  //1) Constraint consistent
   for (int i = 0; i < N; i++) {
     satExactlyOne(engine, D[i].data(), N, encoding);
     satExactlyOne(engine, U[i].data(), N, encoding);
@@ -47,7 +47,7 @@ minimalDFASolution solveSAT(int N, minimalDFACreateInfo ci, const StringTree<boo
       satGenVariables(engine, X[w][p].data(), N);
   }
 
-  // Starting state (state 0)
+  //2) Starting state (state 0)
   for (int w = 0; w < words.size(); ++w) {
     std::vector<int>& x0 = X[w][0];
     for (int s = 0; s < N; ++s) {
@@ -59,12 +59,12 @@ minimalDFASolution solveSAT(int N, minimalDFACreateInfo ci, const StringTree<boo
     }
   }
 
-  // Each position must be in exactly one state
+  //3) Each position must be in exactly one state
   for (int w = 0; w < words.size(); ++w)
     for (int p = 0; p <= words[w].word.length(); ++p)
       satExactlyOne(engine, X[w][p].data(), N, encoding);
 
-  // Transition simulation
+  //4) Transition simulation
   for (int w = 0; w < words.size(); ++w) {
     const std::string& word = words[w].word;
     for (int p = 0; p < word.length(); ++p) {
@@ -85,7 +85,7 @@ minimalDFASolution solveSAT(int N, minimalDFACreateInfo ci, const StringTree<boo
     }
   }
 
-  // Final state must match accept/reject requirement
+  //5) Final state must match accept/reject requirement
   for (int w = 0; w < words.size(); ++w) {
     bool  shouldAccept = words[w].accepted;
     auto& finalStates  = X[w].back();

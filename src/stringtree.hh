@@ -1,24 +1,11 @@
-/*
- * =====================================================================================
- *
- *       Filename:  stringtree.hh
- *
- *    Description:  StringTreeDS
- *
- *        Version:  1.0
- *        Created:  05/18/25 08:32:55
- *       Revision:  none
- *       Compiler:  gcc
- *
- *         Author:  YOUR NAME (), 
- *   Organization:  
- *
- * =====================================================================================
- */
 #include <memory>
 #include <string>
 #include <vector>
 
+/* 
+ * Trie data structure
+ *
+ * */
 template <typename T>
 class StringTree {
   public:
@@ -60,6 +47,9 @@ class StringTree {
     addStringRecursive(key, value, node->nextNodes[c], index + 1);
   }
 
+  /* 
+   * Returns DFS traversal of the structure
+   * */
   void getPaths(const ptr<Node>& node, UniquePathStrip currentPath, std::vector<UniquePathStrip>& paths) {
     if (!node) return;
 

@@ -1,167 +1,132 @@
 #include <stdlib.h>
 #include "solver.hh"
-#include <ilcplex/ilocplex.h>
-#include <ilconcert/ilomodel.h>
-#include <string>
 #include "stringtree.hh"
+#include "sat.h"
+#include <iostream>
 
-ILOSTLBEGIN
+EncodingType encoding = SAT_ENCODING_NONE;
 
-bool symmetrybreaking = true;
-bool feasibleOnly     = false;
-bool prefixMerging    = false;
+minimalDFASolution solveSAT(int N, minimalDFACreateInfo ci, const StringTree<bool>& trie) {
+  minimalDFASolution solution = {};
 
-void addWordConstraints(int N, IloEnv& env, IloModel& model, minimalDFACreateInfo& ci, IloArray<IloBoolVarArray>& D, IloArray<IloBoolVarArray>& U, IloBoolVarArray& A) {
-  auto addWordConstraints = [&](const std::string& w, bool shouldAccept, int index) {
-    int L = w.length();
+  std::vector<std::vector<int>> D(N, std::vector<int>(N));
+  std::vector<std::vector<int>> U(N, std::vector<int>(N));
+  std::vector<int>              A(N);
 
-    IloArray<IloBoolVarArray> X(env, L + 1);
-    for (int t = 0; t <= L; ++t)
-      X[t] = IloBoolVarArray(env, N);
+  SatEngine* engine = satCreate();
 
-    for (int i = 0; i < N; ++i)
-      model.add(X[0][i] == (i == index));
+  //Generate variables
+  for (int i = 0; i < N; i++) {
+    satGenVariables(engine, D[i].data(), N);
+    satGenVariables(engine, U[i].data(), N);
+  }
+  satGenVariables(engine, A.data(), N);
 
-    for (int t = 0; t < L; ++t) {
-      for (int j = 0; j < N; ++j) {
-        IloExpr reach(env);
-        for (int i = 0; i < N; ++i) {
-          IloBoolVar z(env);
-          if (w[t] == '0') {
-            model.add(z <= X[t][i]);
-            model.add(z <= D[i][j]);
-            model.add(z >= X[t][i] + D[i][j] - 1);
-          } else {
-            model.add(z <= X[t][i]);
-            model.add(z <= U[i][j]);
-            model.add(z >= X[t][i] + U[i][j] - 1);
-          }
-          reach += z;
-        }
-        model.add(X[t + 1][j] == reach);
-        reach.end();
-      }
-    }
+  //Constraint consistent
+  for (int i = 0; i < N; i++) {
+    satExactlyOne(engine, D[i].data(), N, encoding);
+    satExactlyOne(engine, U[i].data(), N, encoding);
+  }
 
-    IloExpr final(env);
-    for (int i = 0; i < N; ++i) {
-      IloBoolVar z(env);
-      model.add(z <= A[i]);
-      model.add(z <= X[L][i]);
-      model.add(z >= A[i] + X[L][i] - 1);
-      final += z;
-    }
-    if (shouldAccept)
-      model.add(final >= 1);
-    else
-      model.add(final == 0);
-    final.end();
+  struct WordLabel {
+    std::string word;
+    bool        accepted;
   };
 
-  if (!prefixMerging) {
-    for (auto& word : ci.acceptingWords)
-      addWordConstraints(word, true, 0);
-    for (auto& word : ci.rejectingWords)
-      addWordConstraints(word, false, 0);
-  } else {
+  std::vector<WordLabel> words;
+  for (const auto& w : ci.acceptingWords) words.push_back({w, true});
+  for (const auto& w : ci.rejectingWords) words.push_back({w, false});
 
-    StringTree<bool> trie;
-    for (auto& word : ci.acceptingWords)
-      trie.addString(word, 1);
-    for (auto& word : ci.rejectingWords)
-      trie.addString(word, 0);
+  // Execution traces
+  std::vector<std::vector<std::vector<int>>> X(words.size());
 
-    for (auto& tr : trie.getPaths()) addWordConstraints(tr.word, tr.value, tr.startingindex);
-  }
-}
-
-bool solveLPN(int N, minimalDFACreateInfo ci, minimalDFASolution& solution) {
-  IloEnv   env;
-  IloModel model(env);
-
-  IloArray<IloBoolVarArray> D;
-  IloArray<IloBoolVarArray> U;
-  IloBoolVarArray           A;
-
-  D = IloArray<IloBoolVarArray>(env, N);
-  U = IloArray<IloBoolVarArray>(env, N);
-  for (int i = 0; i < N; ++i) {
-    D[i] = IloBoolVarArray(env, N);
-    U[i] = IloBoolVarArray(env, N);
-  }
-  A = IloBoolVarArray(env, N);
-
-  for (int i = 0; i < N; ++i) {
-    IloExpr sumD(env), sumU(env);
-    for (int j = 0; j < N; ++j) {
-      sumD += D[i][j];
-      sumU += U[i][j];
-    }
-    model.add(sumD == 1);
-    model.add(sumU == 1);
-    sumD.end();
-    sumU.end();
+  for (int w = 0; w < words.size(); ++w) {
+    int len = words[w].word.length();
+    X[w].resize(len + 1, std::vector<int>(N));
+    for (int p = 0; p <= len; ++p)
+      satGenVariables(engine, X[w][p].data(), N);
   }
 
-  addWordConstraints(N, env, model, ci, D, U, A);
-
-  //Symmetry breaking constraints
-  if (symmetrybreaking) {
-    for (int i = 0; i < N - 2; i++) {
-      model.add(D[i][i] >= D[i + 1][i + 1]);
-      model.add(U[i][i] >= U[i + 1][i + 1]);
-      model.add(A[i] >= A[i + 1]);
+  // Starting state (state 0)
+  for (int w = 0; w < words.size(); ++w) {
+    std::vector<int>& x0 = X[w][0];
+    for (int s = 0; s < N; ++s) {
+      if (s == 0)
+        satAdd(engine, x0[s]);
+      else
+        satAdd(engine, -x0[s]);
+      satAdd(engine, 0);
     }
   }
 
-  if (feasibleOnly) {
+  // Each position must be in exactly one state
+  for (int w = 0; w < words.size(); ++w)
+    for (int p = 0; p <= words[w].word.length(); ++p)
+      satExactlyOne(engine, X[w][p].data(), N, encoding);
 
-    IloExpr obj(env);
-    for (int i = 0; i < N; ++i)
-      obj += A[i];
-    model.add(IloMinimize(env, obj));
-    obj.end();
-  }
+  // Transition simulation
+  for (int w = 0; w < words.size(); ++w) {
+    const std::string& word = words[w].word;
+    for (int p = 0; p < word.length(); ++p) {
+      char  sym  = word[p];
+      auto& curr = X[w][p];
+      auto& next = X[w][p + 1];
 
-
-  IloCplex cplex(model);
-
-  cplex.setOut(env.getNullStream());
-  if (!cplex.solve()) {
-    return 0;
-  }
-
-  //Write solution
-  solution.states.resize(N);
-  for (int i = 0; i < N; ++i) {
-    for (int j = 0; j < N; ++j) {
-      if (cplex.getValue(D[i][j]) > 0.5)
-        solution.states[i].onZero = j;
-      if (cplex.getValue(U[i][j]) > 0.5)
-        solution.states[i].onOne = j;
+      for (int from = 0; from < N; ++from) {
+        for (int to = 0; to < N; ++to) {
+          int trans = (sym == '0') ? D[from][to] : U[from][to];
+          // ¬curr[from] ∨ ¬trans ∨ next[to]
+          satAdd(engine, -curr[from]);
+          satAdd(engine, -trans);
+          satAdd(engine, next[to]);
+          satAdd(engine, 0);
+        }
+      }
     }
-    solution.states[i].isAccepting = cplex.getValue(A[i]) > 0.5;
   }
-  return 1;
+
+  // Final state must match accept/reject requirement
+  for (int w = 0; w < words.size(); ++w) {
+    bool  shouldAccept = words[w].accepted;
+    auto& finalStates  = X[w].back();
+
+    for (int s = 0; s < N; ++s) {
+      int lit = shouldAccept ? A[s] : -A[s];
+      satAdd(engine, -finalStates[s]);
+      satAdd(engine, lit);
+      satAdd(engine, 0);
+    }
+  }
+
+  int success = satSolve(engine);
+
+  if (success) {
+    for (int i = 0; i < N; ++i) {
+      minimalDFASolution::State s;
+      for (int j = 0; j < N; ++j) {
+        if (satGetValue(engine, D[i][j]))
+          s.onZero = j;
+        if (satGetValue(engine, U[i][j]))
+          s.onOne = j;
+      }
+      s.isAccepting = satGetValue(engine, A[i]);
+      solution.states.push_back(s);
+    }
+  }
+
+  satDispose(engine);
+  return solution;
 }
 
 minimalDFASolution solveLP(minimalDFACreateInfo ci) {
-  minimalDFASolution solution;
-
-  std::cerr << "SymmetryBreaking = " << symmetrybreaking << " ";
-  std::cerr << "FeasibleOnly = " << feasibleOnly << " ";
-  std::cerr << "PrefixMerging = " << prefixMerging << " ";
-  std::cerr << std::endl;
-
   int i = 1;
-  //Perform a linear search
   while (true) {
-    std::cerr << i << "... ";
-    if (solveLPN(i, ci, solution)) {
-      return solution;
+    std::cerr << i << "...";
+    minimalDFASolution sol = solveSAT(i, ci, {});
+    if (sol.states.size() != 0) {
+      std::cerr << std::endl;
+      return sol;
     }
     i++;
   }
-
-  return {};
 }

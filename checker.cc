@@ -12,14 +12,14 @@
 using namespace std;
 using Word = vector<int>;
 
-int n;
+int          n;
 vector<Word> A;
 vector<Word> R;
 
-vector<vector<int>>       trans;
-vector<int>               final;
+vector<vector<int>> trans;
+vector<int>         final;
 
-ostream& operator <<(ostream& out, const Word& w) {
+ostream& operator<<(ostream& out, const Word& w) {
   for (int wi : w) out << wi;
   return out;
 }
@@ -80,7 +80,7 @@ bool is_accepted(const Word& w) {
 bool check_solution() {
 
   bool ok = true;
-  
+
   for (const auto& w : A)
     if (not is_accepted(w)) {
       cout << "Error: word " << w << " should be accepted but is not" << endl;
@@ -93,33 +93,33 @@ bool check_solution() {
       ok = false;
     }
 
-  if (ok) cout << "OK" << endl;
   return ok;
 }
 
 
 void plot_solution() {
-  cout << "Plotting solution to file tmp.png" << endl;
   ofstream ost("tmp.dot");
 
   int n = final.size();
+  cout << n << " OK " << endl;
+
   int m = trans[0].size();
-  ost << "digraph finite_automaton {" 		    << endl;
-  ost << "    rankdir=LR;"            		    << endl;
-  ost << "    size=\"8,5\""                               << endl;
-  ost << ""                                               << endl;
+  ost << "digraph finite_automaton {" << endl;
+  ost << "    rankdir=LR;" << endl;
+  ost << "    size=\"8,5\"" << endl;
+  ost << "" << endl;
 
   for (int s = 0; s < n; ++s) {
     if (final[s])
       ost << "    node [shape = doublecircle, fillcolor = gold, style = filled]; q" << s << ";" << endl;
     else
-      ost << "    node [shape =       circle, fillcolor = gold, style = filled]; q" << s << ";"           << endl;
+      ost << "    node [shape =       circle, fillcolor = gold, style = filled]; q" << s << ";" << endl;
   }
-  
-  ost << "    node [shape = point ]; qi"                  << endl;
-  ost << ""                                               << endl;
-  ost << "    qi -> q0;"                                  << endl;
-  ost << ""                                               << endl;
+
+  ost << "    node [shape = point ]; qi" << endl;
+  ost << "" << endl;
+  ost << "    qi -> q0;" << endl;
+  ost << "" << endl;
 
   for (int s = 0; s < n; ++s) {
     for (int b = 0; b < m; ++b) {
@@ -127,8 +127,8 @@ void plot_solution() {
       ost << "    q" << s << " -> q" << t << " [ label = \"" << b << "\" ];" << endl;
     }
   }
-  ost << "}"                          << endl;
-  
+  ost << "}" << endl;
+
   ost.close();
   // int res = system("dot -Teps tmp.dot -o tmp.eps");
   int res = system("dot -Tpng tmp.dot -o tmp.png");
@@ -136,7 +136,7 @@ void plot_solution() {
 }
 
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
 
   // Write help message.
   if (argc != 1) {
@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
     cout << "Usage: " << argv[0] << " < output_file" << endl;
     exit(0);
   }
-  
+
   read_input();
   read_output();
   bool ok = check_solution();
